@@ -18,19 +18,12 @@ set -euo pipefail
 
 SDL2_VERSION="${SDL2_VERSION:?SDL2_VERSION must be set}"
 
-# Release assets come through gh, which uses the authenticated API (GH_TOKEN)
-# rather than an anonymous github.com download.
-download_release() {
-    local repo="$1" tag="$2" asset="$3" out="$4"
-    gh release download "${tag}" --repo "${repo}" --pattern "${asset}" --output "${out}" --clobber
-}
-
 build_cmake_project() {
-    local name="$1" repo="$2" tag="$3" asset="$4" srcdir="$5"
-    shift 5
+    local name="$1" url="$2" srcdir="$3"
+    shift 3
 
     echo "Building ${name} (universal, macOS ${MACOS_DEPLOYMENT_TARGET}+)..."
-    download_release "${repo}" "${tag}" "${asset}" "${RUNNER_TEMP}/${name}.tar.gz"
+    curl -fsSL -o "${RUNNER_TEMP}/${name}.tar.gz" "${url}"
     mkdir -p "${RUNNER_TEMP}/src"
     tar -xzf "${RUNNER_TEMP}/${name}.tar.gz" -C "${RUNNER_TEMP}/src"
 
@@ -48,10 +41,11 @@ build_cmake_project() {
 case "$RUNNER_OS" in
     Windows)
         ARCHIVE="SDL2-devel-${SDL2_VERSION}-VC.zip"
+        URL="https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/${ARCHIVE}"
         DEST="${RUNNER_TEMP}/SDL2"
 
         echo "Downloading SDL2 ${SDL2_VERSION} (Windows/MSVC)..."
-        download_release libsdl-org/SDL "release-${SDL2_VERSION}" "${ARCHIVE}" "${RUNNER_TEMP}/${ARCHIVE}"
+        curl -fsSL -o "${RUNNER_TEMP}/${ARCHIVE}" "${URL}"
         unzip -q "${RUNNER_TEMP}/${ARCHIVE}" -d "${DEST}"
 
         SDL2_ROOT="${DEST}/SDL2-${SDL2_VERSION}"
@@ -72,12 +66,12 @@ case "$RUNNER_OS" in
 
             # SDL3 first - sdl2-compat needs its headers and CMake package to configure
             build_cmake_project "SDL3" \
-                libsdl-org/SDL "release-${SDL3_VERSION}" "SDL3-${SDL3_VERSION}.tar.gz" \
+                "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz" \
                 "SDL3-${SDL3_VERSION}" \
                 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
 
             build_cmake_project "sdl2-compat" \
-                libsdl-org/sdl2-compat "release-${SDL2_COMPAT_VERSION}" "sdl2-compat-${SDL2_COMPAT_VERSION}.tar.gz" \
+                "https://github.com/libsdl-org/sdl2-compat/releases/download/release-${SDL2_COMPAT_VERSION}/sdl2-compat-${SDL2_COMPAT_VERSION}.tar.gz" \
                 "sdl2-compat-${SDL2_COMPAT_VERSION}" \
                 -DSDL2COMPAT_STATIC=OFF -DSDL2COMPAT_TESTS=OFF
 
